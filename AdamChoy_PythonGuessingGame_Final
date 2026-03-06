@@ -1,0 +1,263 @@
+# Rockborne Python Project
+# Guess The Number Game
+# Author: Adam Choy
+# Date: 6th March 2026
+
+from random import randint
+
+#ANSI colour and style codes for a more engaging terminal output
+RESET  = "\033[0m"
+MUTED  = "\033[90m" 
+BOLD   = "\033[1m"
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+BLUE   = "\033[34m"
+CYAN   = "\033[36m"
+ORANGE = "\033[38;5;208m"  #256-colour orange
+
+#Declaring variables to be tracked as game is played
+games_played = 0
+games_won = 0
+score = 0
+
+#Each difficulty has unique range, guess limit, and points multiplier
+#Higher multiplier rewards players for choosing higher difficulty
+difficulty = {    
+    "Easy":   {"max_number": 50,  "max_guesses": 7, "multiplier": 0.5},
+    "Normal": {"max_number": 100, "max_guesses": 6, "multiplier": 1},
+    "Hard":   {"max_number": 200, "max_guesses": 5, "multiplier": 4},
+}
+
+#Printed once at startup so welcome message is not repeated when menu() is called
+print("\n=============================")
+print(BOLD+"Welcome to the Guessing Game!"+RESET)
+print("=============================")
+
+def rules(): 
+    """
+    Presents rules of the game to the user
+    Explains objective, the effect of difficulties, 
+    the reward for winning, and the penalty for losing
+    """
+    print("\n"+BOLD+"These are the rules of The Guessing Game:"+RESET)
+    print("\nYour objective is to guess a hidden number.")
+    print("The difficulty you choose will determine the range the number is in and the number of guesses you are allowed.")
+    print("If you guess correctly, you will win points which will be added to your overall score.")
+    print("Points are awarded based on how quickly you guess the number, and what difficulty you have chosen.")
+    print(BOLD+"Difficulty multipliers:"+RESET)
+    print(GREEN+"Easy   → x0.5 points"+RESET)
+    print(ORANGE+"Normal → x1 points"+RESET)
+    print(RED+"Hard   → x4 points"+RESET)
+    print("If you fail to guess the number, you will lose 10 points.")
+    print("Have fun!")
+    input("\nPress Enter to return to the main menu. ")
+
+def menu():
+    """
+    Presents menu to the user with four options
+    Breaks loop if user quits game
+    """
+    while True:
+        print("\n"+BOLD+"Menu:"+RESET)
+        print("\n1. Play Game 🎮")
+        print("2. Read the Rules 📖")
+        print("3. See your Stats 📈")
+        print("4. Quit Game ❌")
+
+        try:
+            menu_option = int(input("\nEnter an option: "))
+        except ValueError:
+            print("\n"+RED+"Please enter 1, 2, 3, or 4."+RESET)
+            continue
+
+        if menu_option == 1:
+            guessing_game()
+        elif menu_option == 2:
+            rules()
+        elif menu_option == 3:
+            stats()
+        elif menu_option == 4:
+            print("\nThank you for playing.")
+            print("Goodbye!\n")
+            #Exits game
+            break
+        else:
+            print(RED+"Please enter a number between 1 and 4."+RESET)
+            continue
+         
+def stats():
+    """
+    Displays the player's stats from the session.
+    (In future, would like to implement a feature which saves stats in separate file.)
+    """
+    print("\n"+BOLD+"Your Stats:"+RESET)
+    print("\nGames played:",games_played)
+    print("Games won:",games_won)
+    if games_played > 0:
+        win_rate = int((games_won / games_played) * 100)
+        print("Win Rate:",str(win_rate)+"%")
+    else:
+        print("Win Rate: N/A")
+    print("Score:",score)
+    input("\nPress Enter to return to the main menu. ")
+
+def select_difficulty():
+    """
+    Allows player to select difficulty
+    Reads from the "difficulties" dictionary
+    """
+    while True:
+        print("\n"+BOLD+"Select Difficulty:"+RESET)
+        print("\n"+GREEN+"1. Easy"+RESET)
+        print(ORANGE+"2. Normal"+RESET)
+        print(RED+"3. Hard"+RESET)
+
+        try:
+            choice = int(input("\nEnter option: "))
+        except ValueError:
+            print(RED+"Please enter 1, 2, or 3."+RESET)
+            continue
+
+        if choice == 1:
+            return difficulty["Easy"]
+        elif choice == 2:
+            return difficulty["Normal"]
+        elif choice == 3:
+            return difficulty["Hard"]
+        else:
+            print(RED+"Please enter 1, 2, or 3."+RESET)
+
+def play_again():
+    """
+    Asks the player to play again or return to menu
+    """
+    while True:
+        print("\n1. Play Again")
+        print("2. Return to Menu")
+        try:
+            again_or_quit = int(input("\nEnter an option: "))
+        except ValueError:
+            print(RED+"Please enter 1 or 2."+RESET)
+            continue
+
+        if again_or_quit == 1:
+            print("\nPlaying Again...")
+            guessing_game()
+            return
+        elif again_or_quit == 2:
+            print("\nReturning to Menu...")
+            return
+        else:
+            print(RED+"Please enter 1 or 2."+RESET)
+
+def guess_progress_bar(guesses_left, max_guesses):
+    """
+    Creates coloured progress bar showing remaining guesses
+    """
+    if guesses_left > 3:
+        bar_colour = GREEN
+    elif guesses_left > 1:
+        bar_colour = YELLOW
+    else:
+        bar_colour = RED
+
+    used_guesses = max_guesses - guesses_left
+
+    #█ is being multiplied by the number of guesses left
+    #░ is being multiplied by the the number of used guesses
+    #They are then added together to make a progress bar
+    #A written label is also added to match the colour of the bar
+    bar = bar_colour + BOLD + "█" * guesses_left + MUTED + "░" * used_guesses + RESET
+    label = bar_colour + BOLD + str(guesses_left) + "/" + str(max_guesses) + " guesses left" + RESET
+    return "Guesses: " + bar + "  " + label
+
+def guessing_game():
+    """
+    Runs one round of the guessing game
+    Loops until player guesses correctly or runs out of guesses
+    Updates games_played, games_won, and score variables based on the outcome.
+    If win: points awarded based on difficulty and guess attempts
+    If lose: hidden number revealed and 10 points deducted regardless of difficulty
+    """
+    global games_played
+    global games_won
+    global score
+
+    #Loads difficulty settings
+    settings = select_difficulty()
+    max_number = settings["max_number"]
+    max_guesses = settings["max_guesses"]
+    multiplier = settings["multiplier"]
+
+    guess_counter = 0
+    guess = 0
+    games_played += 1
+    
+    #Range is determined by the selected difficulty
+    number = randint(1,max_number)
+
+    #Remind player of rules before game begins
+    print("\n"+BOLD+"Guess a number between 1-"+str(max_number)+"."+RESET)
+
+    #Loop until correct guess or player exhausts their allowed guesses
+    while guess != number and guess_counter < max_guesses:
+
+        #Informs player how many guesses they have remaining
+        guesses_left = max_guesses - guess_counter
+        print("\n" + guess_progress_bar(guesses_left, max_guesses))
+        try:
+            guess = int(input("Guess a number: "))
+        except ValueError:
+            print("Please enter a valid integer.")
+            continue
+        
+        #Rejects guesses outside of range
+        if guess < 1 or guess > max_number:
+            print(RED+"Please enter a number between 1 and "+str(max_number)+"."+RESET)
+            continue
+
+        guess_counter += 1
+        
+        #Guess is higher
+        if guess > number:
+            print(guess,"is "+BOLD+"too high."+RESET)
+            if (guess - number) >= 1 and (guess - number) < 4:
+                print(RED+BOLD+"Hint: You are within 3!"+RESET)
+            elif (guess - number) >= 4 and (guess - number) < 11:
+                print(ORANGE+"Hint: You are within 10..."+RESET)
+            elif (guess - number) >= 11 and (guess - number) < 26:
+                print(CYAN+"Hint: You are within 25."+RESET)
+            else:
+                print(BLUE+"Hint: You are not even close."+RESET)
+
+        #Guess is lower
+        elif guess < number:
+            print (guess,"is "+BOLD+"too low."+RESET)
+            if (number - guess) >= 1 and (number - guess) < 4:
+                print(RED+BOLD+"Hint: You are within 3!"+RESET)
+            elif (number - guess) >= 4 and (number - guess) < 11:
+                print(ORANGE+"Hint: You are within 10..."+RESET)
+            elif (number - guess) >= 11 and (number - guess) < 26:
+                print(CYAN+"Hint: You are within 25."+RESET)
+            else:
+                print(BLUE+"Hint: You are not even close."+RESET)
+
+        #Guess is correct
+        else:
+            points = int((max_guesses + 1 - guess_counter) * 10 * multiplier)
+            score += points
+            games_won += 1
+            print(BOLD+str(guess)+" is correct!"+RESET)
+            print(GREEN+BOLD+"You win "+str(points)+" Points!"+RESET)
+            play_again()
+            return
+
+    #Player runs out of guesses, is informed of hidden number and point deduction
+    print("\nYou are out of guesses!")
+    print("The hidden number was "+str(number)+".")
+    score -= 10
+    print(RED+"You lose 10 points!"+RESET)
+    play_again()
+
+menu()
